@@ -1,0 +1,16 @@
+{
+  "title": "C# for Unity",
+  "subtitle": "The handbook a Unity developer reads every day",
+  "author": "",
+  "files": [
+    "Assets/00_intro.md",
+    "Assets/10_part1_a.md",
+    "Assets/11_part1_b.md",
+    "Assets/12_part1_c.md",
+    "Assets/20_part2_a.md",
+    "Assets/21_part2_b.md",
+    "Assets/22_part2_c.md",
+    "Assets/30_part3_a.md",
+    "Assets/31_part3_b.md"
+  ]
+}
