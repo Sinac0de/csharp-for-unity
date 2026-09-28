@@ -1,0 +1,24 @@
+# Local tooling metadata — the reader does not need it
+.freebuff/
+
+# Generated build output.
+# `npm run build` recreates dist/reader.html from the notes, so it is not tracked.
+# If you would rather ship the portable file inside the repository, delete these
+# two lines — but prefer attaching it to a GitHub Release instead.
+dist/
+
+# Dependencies (this project has none, but keep the folder out of history)
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS and editor noise
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
