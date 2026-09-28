@@ -1688,6 +1688,11 @@ body[data-focus="true"] .focus-exit {
   top: calc(var(--topbar-h) + 8px);
   right: 14px;
   width: min(330px, calc(100vw - 28px));
+  /* The panel is taller than a phone in landscape. Let it scroll rather than
+     run off the bottom of the screen where nothing can reach it. */
+  max-height: calc(100dvh - var(--topbar-h) - 22px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1768,6 +1773,93 @@ body[data-focus="true"] .focus-exit {
   font-size: 0.7rem;
   color: var(--faint);
   line-height: 1.5;
+}
+
+/* -------------------------------------------------------------------- colophon */
+
+/* A quiet credit at the end of the settings panel: who wrote this, and where the
+   source lives. Deliberately the last thing in the sheet, low contrast until you
+   reach for it. */
+.colophon {
+  margin-top: 12px;
+  padding: 11px 10px 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--muted);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.colophon-mark {
+  width: 17px;
+  height: 17px;
+  color: var(--faint);
+  fill: currentColor;
+  stroke: none;
+  transition: color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.colophon-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.colophon-repo {
+  font: 600 0.71rem/1.3 var(--font-mono);
+  color: var(--text-strong);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.colophon-line {
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--faint);
+  transition: color var(--dur) var(--ease);
+}
+.colophon-go {
+  width: 14px;
+  height: 14px;
+  color: var(--faint);
+  opacity: 0;
+  transform: translate(-3px, 3px);
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+.colophon:hover,
+.colophon:focus-visible {
+  background: var(--surface-2);
+}
+.colophon:hover .colophon-mark,
+.colophon:focus-visible .colophon-mark {
+  color: var(--accent);
+  transform: scale(1.08);
+}
+.colophon:hover .colophon-line,
+.colophon:focus-visible .colophon-line {
+  color: var(--muted);
+}
+.colophon:hover .colophon-go,
+.colophon:focus-visible .colophon-go {
+  opacity: 1;
+  color: var(--accent);
+  transform: translate(0, 0);
+}
+.colophon:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* No hover on touch, so the affordance has to be visible by default. */
+@media (hover: none) {
+  .colophon-go {
+    opacity: 0.7;
+    transform: none;
+  }
 }
 
 /* -------------------------------------------------------------------- toasts */
