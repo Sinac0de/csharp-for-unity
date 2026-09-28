@@ -1,0 +1,28 @@
+{
+  "name": "csharp-unity-handbook",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A focused reading experience for a C# and Unity developer handbook written in Markdown.",
+  "scripts": {
+    "dev": "node tools/serve.mjs --open",
+    "serve": "node tools/serve.mjs",
+    "build": "node tools/build.mjs",
+    "manifest": "node tools/manifest.mjs",
+    "icons": "node tools/icons.mjs",
+    "test": "node tools/selfcheck.mjs",
+    "check": "node tools/manifest.mjs --check && node tools/selfcheck.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "markdown",
+    "reader",
+    "unity",
+    "csharp",
+    "notes",
+    "pwa"
+  ],
+  "license": "MIT"
+}
