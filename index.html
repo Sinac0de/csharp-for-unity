@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-font="sans" data-size="m" data-width="normal" data-leading="normal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>C# for Unity</title>
+  <meta name="description" content="A reading experience for a C# and Unity handbook.">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="C# Notes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="reader/manifest.webmanifest">
+  <link rel="icon" href="reader/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="reader/icons/icon-192.png">
+  <link rel="stylesheet" href="reader/app.css">
+  <script>
+    /* Apply the saved theme before first paint so there is no flash. */
+    (function () {
+      try {
+        var stored = JSON.parse(localStorage.getItem('csharp-unity-reader') || '{}');
+        var s = stored.settings || {};
+        var root = document.documentElement;
+        var theme = s.theme || 'auto';
+        var dark = theme === 'dark' ||
+          (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        root.dataset.theme = dark ? 'dark' : 'light';
+        if (s.font) root.dataset.font = s.font;
+        if (s.size) root.dataset.size = s.size;
+        if (s.width) root.dataset.width = s.width;
+        if (s.leading) root.dataset.leading = s.leading;
+        if (s.focus) document.addEventListener('DOMContentLoaded', function () {
+          document.body.dataset.focus = 'true';
+        });
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+
+  <div id="app" hidden>
+    <header class="topbar">
+      <button class="icon-btn hamburger" id="menuToggle" type="button" aria-label="Open contents">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+
+      <a class="brand" href="#/" data-navlink>
+        <span class="brand-mark" aria-hidden="true">C#</span>
+        <span class="brand-text">
+          <span class="brand-title" id="brandTitle">C# for Unity</span>
+          <span class="brand-sub" id="brandSub"></span>
+        </span>
+      </a>
+
+      <span class="topbar-spacer"></span>
+
+      <button class="search-trigger" id="searchTrigger" type="button">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span class="search-label">Search the handbook</span>
+        <span class="kbd" id="searchShortcut">⌘K</span>
+      </button>
+
+      <span class="divider-v" aria-hidden="true"></span>
+
+      <button class="icon-btn" id="navStar" type="button" aria-pressed="false" aria-label="Bookmark this chapter" title="Bookmark this chapter">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9Z"/></svg>
+      </button>
+      <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle theme">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg>
+      </button>
+      <button class="icon-btn" id="focusModeToggle" type="button" aria-pressed="false" aria-label="Focus mode" title="Focus mode (f) — hide everything but the chapter">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5.6A1.6 1.6 0 0 1 5.6 4H9M15 4h3.4A1.6 1.6 0 0 1 20 5.6V9M20 15v3.4a1.6 1.6 0 0 1-1.6 1.6H15M9 20H5.6A1.6 1.6 0 0 1 4 18.4V15"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsToggle" type="button" aria-label="Reading settings" title="Reading settings">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2"/><circle cx="10" cy="16" r="2"/></svg>
+      </button>
+    </header>
+
+    <div class="shell">
+      <aside class="sidebar" id="sidebar" aria-label="Table of contents">
+        <div id="resumeSlot"></div>
+        <nav id="sidebarNav" aria-label="Chapters"></nav>
+        <div id="bookmarksSlot"></div>
+        <div class="sidebar-foot">
+          <div class="sidebar-stat"><span id="sidebarReadLabel">0 of 0 chapters read</span><b id="sidebarProgressLabel">0%</b></div>
+          <div class="mini-track"><div class="mini-fill" id="sidebarProgressFill"></div></div>
+          <p class="sidebar-hint">
+            Press <span class="kbd">/</span> to search, <span class="kbd">[</span> <span class="kbd">]</span> to move between chapters.
+          </p>
+        </div>
+      </aside>
+
+      <main class="main" id="main">
+        <article class="chapter" id="chapter"></article>
+        <div id="printAll" aria-hidden="true"></div>
+      </main>
+
+      <aside class="rail" id="rail" aria-label="On this page">
+        <p class="rail-head">On this page</p>
+        <ul class="rail-list" id="railList"></ul>
+      </aside>
+    </div>
+
+    <button class="fab" id="fab" type="button" aria-label="Back to top">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </button>
+
+    <button class="focus-exit" id="focusExit" type="button" title="Leave focus mode (Esc)">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v3.4A1.6 1.6 0 0 1 7.4 9H4M20 9h-3.4A1.6 1.6 0 0 1 15 7.4V4M15 20v-3.4a1.6 1.6 0 0 1 1.6-1.6H20M4 15h3.4A1.6 1.6 0 0 1 9 16.6V20"/></svg>
+      <span>Exit focus mode</span>
+      <span class="kbd">Esc</span>
+    </button>
+
+    <div class="scrim" id="scrim" aria-hidden="true"></div>
+  </div>
+
+  <div class="boot" id="boot" hidden></div>
+
+  <div class="overlay" id="searchOverlay" data-open="false" role="dialog" aria-modal="true" aria-label="Search">
+    <div class="palette">
+      <div class="palette-search">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="searchInput" type="search" placeholder="Search chapters, sections and code…"
+               autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search query">
+        <span class="kbd">Esc</span>
+        <button class="icon-btn palette-close" id="searchClose" type="button" aria-label="Close search" data-close-search>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="palette-body" id="searchResults"></div>
+      <div class="palette-foot" id="searchFoot" hidden>
+        <span><span class="kbd">↑</span><span class="kbd">↓</span> navigate</span>
+        <span><span class="kbd">↵</span> open</span>
+        <span class="spacer"></span>
+        <span>Results are ranked by title and frequency</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet" id="settingsSheet" data-open="false" role="dialog" aria-label="Reading settings">
+    <p class="sheet-title">Appearance</p>
+
+    <div class="opt-row" data-setting="theme">
+      <label>Theme</label>
+      <div class="seg">
+        <button type="button" data-value="auto">Auto</button>
+        <button type="button" data-value="light">Light</button>
+        <button type="button" data-value="dark">Dark</button>
+      </div>
+    </div>
+
+    <div class="opt-row" data-setting="font">
+      <label>Typeface</label>
+      <div class="seg">
+        <button type="button" data-value="sans">Sans</button>
+        <button type="button" data-value="serif">Serif</button>
+      </div>
+    </div>
+
+    <div class="opt-row" data-setting="size">
+      <label>Text size</label>
+      <div class="seg">
+        <button type="button" data-value="s">S</button>
+        <button type="button" data-value="m">M</button>
+        <button type="button" data-value="l">L</button>
+        <button type="button" data-value="xl">XL</button>
+      </div>
+    </div>
+
+    <div class="opt-row" data-setting="leading">
+      <label>Line spacing</label>
+      <div class="seg">
+        <button type="button" data-value="tight">Tight</button>
+        <button type="button" data-value="normal">Normal</button>
+        <button type="button" data-value="loose">Loose</button>
+      </div>
+    </div>
+
+    <div class="opt-row" data-setting="width">
+      <label>Reading width</label>
+      <div class="seg">
+        <button type="button" data-value="narrow">Narrow</button>
+        <button type="button" data-value="normal">Normal</button>
+        <button type="button" data-value="wide">Wide</button>
+      </div>
+    </div>
+
+    <div class="sheet-divider"></div>
+
+    <div class="opt-row" data-setting="focus">
+      <label>Focus mode</label>
+      <div class="seg">
+        <button type="button" data-value="false">Off</button>
+        <button type="button" data-value="true">On</button>
+      </div>
+    </div>
+
+    <div class="sheet-divider"></div>
+
+    <button class="sheet-reset" id="printBtn" type="button" style="border-color:var(--border)">
+      Print / export the whole handbook to PDF
+    </button>
+    <button class="sheet-reset" id="resetBtn" type="button">Reset preferences</button>
+
+    <p class="sheet-note">
+      Keyboard — <b>/</b> or <b>Ctrl K</b> search, <b>[</b> <b>]</b> previous &amp; next
+      chapter, <b>f</b> focus mode, <b>t</b> theme, <b>s</b> bookmark, <b>g</b> top of
+      page, <b>Esc</b> leave focus mode. Shortcuts follow the physical key, so they
+      work on any keyboard layout.
+    </p>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="true"></div>
+
+  <noscript>
+    <p style="padding:40px;font:16px system-ui">This reader needs JavaScript enabled.</p>
+  </noscript>
+
+  <script type="module" src="reader/app.js"></script>
+</body>
+</html>
