@@ -13,6 +13,7 @@
  */
 
 import { buildBook, escapeHtml } from './md.js';
+import { translate, fold, directionOf } from './i18n.js';
 
 /* ------------------------------------------------------------------ elements */
 
@@ -70,6 +71,7 @@ const ICONS = {
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   chevronRight: '<path d="m9 6 6 6-6 6"/>',
   link: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
 };
 
 function icon(name, cls = '') {
@@ -82,6 +84,35 @@ function icon(name, cls = '') {
 
 const STORE_KEY = 'csharp-unity-reader';
 
+/* ----------------------------------------------------------------- language */
+
+/** Interface language. The notes have their own copy per language. */
+let lang = 'en';
+const t = (key, vars) => translate(lang, key, vars);
+const isRtl = () => directionOf(lang) === 'rtl';
+
+/**
+ * Translates everything the markup declares, so index.html can stay plain
+ * English and still read correctly in Persian.
+ *
+ * `data-i18n`        → textContent (safe: never interpreted as markup)
+ * `data-i18n-html`   → innerHTML, for the two hints that contain <b>/<span class="kbd">
+ * `data-i18n-title`  → the title attribute
+ * `data-i18n-aria`   → aria-label
+ * `data-i18n-ph`     → placeholder
+ */
+function applyStaticStrings() {
+  $$('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  $$('[data-i18n-html]').forEach((el) => {
+    el.innerHTML = t(el.dataset.i18nHtml);
+  });
+  $$('[data-i18n-title]').forEach((el) => el.setAttribute('title', t(el.dataset.i18nTitle)));
+  $$('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+  $$('[data-i18n-ph]').forEach((el) => el.setAttribute('placeholder', t(el.dataset.i18nPh)));
+}
+
 const defaults = {
   settings: {
     theme: 'auto',
@@ -90,6 +121,7 @@ const defaults = {
     width: 'normal',
     leading: 'normal',
     focus: false,
+    lang: 'en',
   },
   bookmarks: [],
   read: {},
@@ -151,6 +183,12 @@ function applySettings() {
   root.dataset.leading = s.leading;
   document.body.dataset.focus = String(!!s.focus);
 
+  /* `dir` on <html> is what flips the whole layout: grid columns, flex rows and
+     every logical property follow it. Code blocks carry their own dir="ltr". */
+  root.lang = lang;
+  root.dir = directionOf(lang);
+  applyStaticStrings();
+
   const meta = $('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', resolved === 'dark' ? '#080a0f' : '#ffffff');
 
@@ -164,12 +202,17 @@ function applySettings() {
   const themeBtn = $('#themeToggle');
   if (themeBtn) {
     const next = resolved === 'dark' ? 'light' : 'dark';
-    themeBtn.setAttribute('aria-label', `Switch to ${next} theme`);
+    themeBtn.setAttribute(
+      'aria-label',
+      t('topbar.theme', { theme: t(`topbar.theme.${next}`) }),
+    );
     themeBtn.innerHTML = icon(resolved === 'dark' ? 'sun' : 'moon');
   }
 
   const hint = $('#searchShortcut');
   if (hint) hint.textContent = isMac ? '⌘K' : 'Ctrl K';
+
+  renderLanguageUI();
 
   const focusBtn = $('#focusModeToggle');
   if (focusBtn) focusBtn.setAttribute('aria-pressed', String(!!s.focus));
@@ -188,37 +231,38 @@ mqlDark.addEventListener('change', () => {
 
 /* ------------------------------------------------------------------ chapter */
 
-function splitPartTitle(title) {
-  const m = /^(Part\s+[IVXLCDM\d]+)\s*[—–-]\s*(.+)$/i.exec(title || '');
-  if (m) return { kicker: m[1], name: m[2] };
-  return { kicker: 'Part', name: title || 'Notes' };
-}
+/* The tags the stats strip knows how to label. Named differently from md.js's
+   list because the portable build joins both modules into one scope. */
+const STATS_TAGS = ['tip', 'warn', 'note', 'perf', 'interview', 'recap'];
 
-const CALLOUT_LABEL = {
-  tip: 'tip',
-  warn: 'pitfall',
-  note: 'Unity note',
-  perf: 'perf',
-  interview: 'interview',
-  recap: 'recap',
-};
+/** "Part I — C# Foundations" and "بخش اول — مبانی زبان" split the same way. */
+function splitPartTitle(title) {
+  const text = String(title || '').trim() || t('chapter.notes');
+  const m = /^(.*?)\s+[—–-]\s+(.+)$/.exec(text);
+  if (m) return { kicker: m[1], name: m[2] };
+  return { kicker: t('chapter.part'), name: text };
+}
 
 function chapterHeaderHTML(chapter) {
   const { kicker, name } = splitPartTitle(chapter.partTitle);
   const chips = [
-    `<span class="meta-chip" data-kind="code">${icon('clock')}${chapter.minutes} min read</span>`,
+    `<span class="meta-chip" data-kind="code">${icon('clock')}${escapeHtml(
+      t('chapter.minutes', { n: chapter.minutes }),
+    )}</span>`,
   ];
   if (chapter.stats.code) {
     chips.push(
-      `<span class="meta-chip" data-kind="code">${icon('code')}${chapter.stats.code} code samples</span>`,
+      `<span class="meta-chip" data-kind="code">${icon('code')}${escapeHtml(
+        t('chapter.code', { n: chapter.stats.code }),
+      )}</span>`,
     );
   }
   for (const [tag, count] of Object.entries(chapter.stats.callouts)) {
-    if (!CALLOUT_LABEL[tag]) continue;
+    if (!STATS_TAGS.includes(tag)) continue;
     chips.push(
-      `<span class="meta-chip" data-kind="${tag}">${icon(tag)}${count} ${CALLOUT_LABEL[tag]}${
-        count > 1 ? 's' : ''
-      }</span>`,
+      `<span class="meta-chip" data-kind="${tag}">${icon(tag)}${escapeHtml(
+        t(`chapter.${tag}`, { n: count }),
+      )}</span>`,
     );
   }
 
@@ -236,18 +280,20 @@ function chapterHeaderHTML(chapter) {
   return `${banner}
   <header class="chapter-head">
     <div class="eyebrow">
-      <span>${escapeHtml(chapter.partTitle || 'Notes')}</span>
+      <span>${escapeHtml(chapter.partTitle || t('chapter.notes'))}</span>
       <span class="sep">/</span>
-      <span>${escapeHtml(chapter.label || 'Overview')}</span>
+      <span>${escapeHtml(
+        chapter.number ? t('chapter.label', { n: chapter.number }) : t('chapter.overview'),
+      )}</span>
     </div>
     <h1 id="chapter-title">${chapter.titleHtml}</h1>
     <div class="chapter-meta">
       ${chips.join('')}
       <button class="read-toggle" type="button" id="readToggle" aria-pressed="${isRead}">
-        ${icon('check')}<span>${isRead ? 'Read' : 'Mark as read'}</span>
+        ${icon('check')}<span>${isRead ? t('chapter.read') : t('chapter.markRead')}</span>
       </button>
       <button class="read-toggle" type="button" id="starToggle" aria-pressed="${isStarred}">
-        ${icon('star')}<span>${isStarred ? 'Bookmarked' : 'Bookmark'}</span>
+        ${icon('star')}<span>${isStarred ? t('chapter.bookmarked') : t('chapter.bookmark')}</span>
       </button>
     </div>
   </header>`;
@@ -258,9 +304,10 @@ function chapterFootHTML(index) {
   const next = book.chapters[index + 1];
   const btn = (c, dir) => {
     if (!c) return `<div class="foot-btn" data-empty="true" data-dir="${dir}"></div>`;
-    const label = dir === 'prev' ? 'Previous' : 'Next';
+    const label = t(dir === 'prev' ? 'foot.previous' : 'foot.next');
+    const numbered = c.number ? ` · ${escapeHtml(t('chapter.label', { n: c.number }))}` : '';
     return `<a class="foot-btn" data-dir="${dir}" href="#/${c.id}" data-navlink>
-      <span class="dir">${label}${c.label ? ` · ${escapeHtml(c.label)}` : ''}</span>
+      <span class="dir">${escapeHtml(label)}${numbered}</span>
       <span class="to">${escapeHtml(c.title)}</span>
     </a>`;
   };
@@ -294,7 +341,10 @@ function renderSidebar() {
   });
 
   els.nav.innerHTML =
-    `<div class="sidebar-head"><h2>Contents</h2><span class="sidebar-count">${book.chapters.length} chapters</span></div>` +
+    `<div class="sidebar-head"><h2>${escapeHtml(t('sidebar.contents'))}</h2>` +
+    `<span class="sidebar-count">${escapeHtml(
+      t('sidebar.chapters', { n: book.chapters.length }),
+    )}</span></div>` +
     groups.join('');
   renderBookmarks();
   renderResume();
@@ -310,6 +360,8 @@ function navItemHTML(chapter) {
   const read = !!state.read[chapter.id];
   const starred = state.bookmarks.includes(chapter.id);
   const title = escapeHtml(chapter.title);
+  const readTitle = read ? t('nav.markUnread') : t('nav.markRead');
+  const starTitle = starred ? t('nav.removeBookmark') : t('nav.addBookmark');
   return `<li class="nav-row" data-chapter="${chapter.id}" data-current="false"
       data-read="${read}" data-starred="${starred}">
     <a class="nav-item" href="#/${chapter.id}" data-navlink data-chapter="${chapter.id}"
@@ -319,12 +371,15 @@ function navItemHTML(chapter) {
     </a>
     <span class="nav-acts">
       <button class="nav-act nav-act-read" type="button" data-mark-read="${chapter.id}"
-        aria-pressed="${read}" title="${read ? 'Mark as unread' : 'Mark as read'}"
-        aria-label="Mark ${title} as ${read ? 'unread' : 'read'}">${icon('checkCircle')}</button>
+        aria-pressed="${read}" title="${escapeHtml(readTitle)}"
+        aria-label="${escapeHtml(
+          t(read ? 'nav.markUnreadOf' : 'nav.markReadOf', { title: chapter.title }),
+        )}">${icon('checkCircle')}</button>
       <button class="nav-act nav-act-star" type="button" data-star="${chapter.id}"
-        aria-pressed="${starred}"
-        title="${starred ? 'Remove bookmark' : 'Add bookmark'}"
-        aria-label="${starred ? 'Remove bookmark' : 'Add bookmark'} ${title}">${icon('star')}</button>
+        aria-pressed="${starred}" title="${escapeHtml(starTitle)}"
+        aria-label="${escapeHtml(
+          t(starred ? 'nav.removeBookmarkOf' : 'nav.addBookmarkOf', { title: chapter.title }),
+        )}">${icon('star')}</button>
     </span>
   </li>`;
 }
@@ -335,8 +390,10 @@ function renderBookmarks() {
     .map((id) => book.chapters.find((c) => c.id === id))
     .filter(Boolean);
   els.bookmarksSlot.innerHTML = marked.length
-    ? `<nav class="nav-group" aria-label="Bookmarks">
-        <p class="nav-group-label"><span class="dot"></span>Bookmarks</p>
+    ? `<nav class="nav-group" aria-label="${escapeHtml(t('sidebar.bookmarks'))}">
+        <p class="nav-group-label"><span class="dot"></span>${escapeHtml(
+          t('sidebar.bookmarks'),
+        )}</p>
         <ul class="nav-list">${marked.map((c) => navItemHTML(c)).join('')}</ul>
       </nav>`
     : '';
@@ -355,10 +412,10 @@ function renderResume() {
   els.resumeSlot.innerHTML = `<button class="resume-card" type="button" data-resume="${chapter.id}">
     ${icon('bookmark')}
     <span style="min-width:0">
-      <small>Continue reading</small>
+      <small>${escapeHtml(t('sidebar.continue'))}</small>
       <strong>${escapeHtml(chapter.title)}</strong>
     </span>
-    <span class="sidebar-count" style="margin-left:auto">${pct}%</span>
+    <span class="sidebar-count" style="margin-inline-start:auto">${pct}%</span>
   </button>`;
 }
 
@@ -366,9 +423,9 @@ function updateProgressUI() {
   const total = book.chapters.length || 1;
   const done = book.chapters.filter((c) => state.read[c.id]).length;
   const pct = Math.round((done / total) * 100);
-  if (els.progressLabel) els.progressLabel.textContent = `${pct}% complete`;
+  if (els.progressLabel) els.progressLabel.textContent = t('sidebar.complete', { pct });
   if (els.progressFillMini) els.progressFillMini.style.width = `${pct}%`;
-  if (els.readLabel) els.readLabel.textContent = `${done} of ${total} chapters read`;
+  if (els.readLabel) els.readLabel.textContent = t('sidebar.read', { done, total });
 
   $$('.nav-row[data-chapter]').forEach((row) => {
     const id = row.dataset.chapter;
@@ -381,8 +438,8 @@ function updateProgressUI() {
     const readBtn = row.querySelector('.nav-act-read');
     if (readBtn) {
       readBtn.setAttribute('aria-pressed', String(read));
-      readBtn.title = read ? 'Mark as unread' : 'Mark as read';
-      readBtn.setAttribute('aria-label', `Mark ${title} as ${read ? 'unread' : 'read'}`);
+      readBtn.title = read ? t('nav.markUnread') : t('nav.markRead');
+      readBtn.setAttribute('aria-label', t(read ? 'nav.markUnreadOf' : 'nav.markReadOf', { title }));
     }
     const starBtn = row.querySelector('.nav-act-star');
     if (starBtn) starBtn.setAttribute('aria-pressed', String(starred));
@@ -401,10 +458,10 @@ function setRead(id, value, { announce = true } = {}) {
     if (toggle) {
       toggle.setAttribute('aria-pressed', String(value));
       const label = toggle.querySelector('span');
-      if (label) label.textContent = value ? 'Read' : 'Mark as read';
+      if (label) label.textContent = value ? t('chapter.read') : t('chapter.markRead');
     }
   }
-  if (announce) toast(value ? 'Marked as read' : 'Marked as unread', 'ok');
+  if (announce) toast(value ? t('toast.read') : t('toast.unread'), 'ok');
 }
 
 /* ------------------------------------------------------------------ routing */
@@ -517,7 +574,7 @@ function buildRail(chapter) {
             data-navlink data-level="${h.level}">${escapeHtml(h.text)}</a></li>`,
         )
         .join('')
-    : '<li class="rail-empty">No sections</li>';
+    : `<li class="rail-empty">${escapeHtml(t('rail.empty'))}</li>`;
 }
 
 let activeSectionId = null;
@@ -541,7 +598,7 @@ function updateStarButton() {
   if (head) {
     head.setAttribute('aria-pressed', String(starred));
     const label = head.querySelector('span');
-    if (label) label.textContent = starred ? 'Bookmarked' : 'Bookmark';
+    if (label) label.textContent = starred ? t('chapter.bookmarked') : t('chapter.bookmark');
   }
   const top = $('#navStar');
   if (top) top.setAttribute('aria-pressed', String(starred));
@@ -618,10 +675,16 @@ window.addEventListener('resize', onScroll, { passive: true });
 
 let index = [];
 
+/** "Chapter 26 · Part IV — Practice" in whichever language is being read. */
+function chapterTitleOf(chapter) {
+  const label = chapter.number ? t('chapter.label', { n: chapter.number }) : '';
+  return label ? `${label} · ${chapter.partTitle}` : chapter.partTitle;
+}
+
 function buildIndex() {
   index = [];
   for (const chapter of book.chapters) {
-    const parts = chapter.textParts || [];
+    const parts = (chapter.textParts || []).map(fold);
     const headings = chapter.headings || [];
     const consumed = new Set();
 
@@ -635,14 +698,18 @@ function buildIndex() {
       }
       const start = (h.textIndex ?? 0) + 1;
       const body = parts.slice(start, Math.max(start, end)).join(' ');
+
       if (h.textIndex !== undefined) consumed.add(h.textIndex);
       index.push({
         kind: 'section',
         chapterId: chapter.id,
         sectionId: h.id,
-        where: chapter.label ? `${chapter.label} · ${chapter.partTitle}` : chapter.partTitle,
-        title: h.text,
-        text: `${h.text} ${body}`.replace(/\s+/g, ' ').trim(),
+        where: chapterTitleOf(chapter),
+        /* Folded for matching *and* for display: every replacement is a
+           character-for-character normalisation, so highlights and snippets
+           slice the same string they matched. */
+        title: fold(h.text),
+        text: fold(`${h.text} ${body}`).replace(/\s+/g, ' ').trim(),
       });
     });
 
@@ -658,8 +725,8 @@ function buildIndex() {
         chapterId: chapter.id,
         sectionId: null,
         where: chapter.partTitle,
-        title: chapter.title,
-        text: `${chapter.title} ${preamble}`.trim(),
+        title: fold(chapter.title),
+        text: fold(`${chapter.title} ${preamble}`).trim(),
       });
     }
   }
@@ -668,7 +735,11 @@ function buildIndex() {
 const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function termsOf(query) {
-  return query.toLowerCase().split(/\s+/).map((t) => t.trim()).filter(Boolean);
+  return fold(query)
+    .toLowerCase()
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter(Boolean);
 }
 
 function search(query) {
@@ -745,9 +816,9 @@ function renderSearch(query) {
   els.searchFoot.hidden = false;
 
   if (!results.length) {
-    els.searchResults.innerHTML = `<div class="palette-empty">No results for “${escapeHtml(
-      query,
-    )}”.</div>`;
+    els.searchResults.innerHTML = `<div class="palette-empty">${t('search.none', {
+      q: escapeHtml(query),
+    })}</div>`;
     return;
   }
 
@@ -757,7 +828,9 @@ function renderSearch(query) {
       return `<a class="result" href="${href}" data-navlink data-result="${i}"
         data-active="${i === 0}" data-chapter="${r.chapterId}" data-section="${r.sectionId || ''}">
         <span class="result-top">
-          <span class="result-kind">${r.kind === 'section' ? 'Section' : 'Chapter'}</span>
+          <span class="result-kind">${escapeHtml(
+            t(r.kind === 'section' ? 'search.section' : 'search.chapter'),
+          )}</span>
           <span class="result-title">${mark(r.title, terms)}</span>
           <span class="result-where">${escapeHtml(r.where || '')}</span>
         </span>
@@ -785,7 +858,9 @@ function defaultSuggestions() {
           .map(
             (c) => `<a class="result" href="#/${c.id}" data-navlink data-result="-1" data-chapter="${c.id}">
           <span class="result-top"><span class="result-title">${escapeHtml(c.title)}</span></span>
-          <span class="result-snippet">${escapeHtml(c.partTitle)} · ${c.minutes} min</span>
+          <span class="result-snippet">${escapeHtml(c.partTitle)} · ${escapeHtml(
+            t('chapter.minutesShort', { n: c.minutes }),
+          )}</span>
         </a>`,
           )
           .join('')
@@ -793,10 +868,10 @@ function defaultSuggestions() {
 
   const unread = book.chapters.filter((c) => !state.read[c.id]).slice(0, 4);
   return (
-    section('Bookmarks', bookmarked) +
-      section('Recently read', recent) +
-      section('Up next', unread) ||
-    '<div class="palette-empty">Start typing to search the whole handbook.</div>'
+    section(t('search.bookmarks'), bookmarked) +
+      section(t('search.recent'), recent) +
+      section(t('search.upNext'), unread) ||
+    `<div class="palette-empty">${t('search.empty')}</div>`
   );
 }
 
@@ -837,7 +912,7 @@ function toggleBookmark(id) {
   renderBookmarks();
   updateProgressUI();
   updateStarButton();
-  toast(i === -1 ? 'Added to bookmarks' : 'Removed from bookmarks', 'ok');
+  toast(i === -1 ? t('toast.added') : t('toast.removed'), 'ok');
 }
 
 async function copyText(text, button, { announce = true } = {}) {
@@ -860,13 +935,13 @@ async function copyText(text, button, { announce = true } = {}) {
   if (button?.classList.contains('code-copy')) {
     const label = button.querySelector('span');
     button.dataset.copied = 'true';
-    if (label) label.textContent = 'Copied';
+    if (label) label.textContent = t('code.copied');
     setTimeout(() => {
       button.dataset.copied = 'false';
-      if (label) label.textContent = 'Copy';
+      if (label) label.textContent = t('code.copy');
     }, 1600);
   }
-  if (announce) toast('Copied to clipboard', 'ok');
+  if (announce) toast(t('toast.copied'), 'ok');
 }
 
 document.addEventListener('click', (event) => {
@@ -936,7 +1011,7 @@ document.addEventListener('click', (event) => {
       announce: false,
     });
     go(`#/${current?.id}/${id}`);
-    toast('Section link copied', 'ok');
+    toast(t('toast.link'), 'ok');
     return;
   }
 
@@ -994,7 +1069,18 @@ document.addEventListener('click', (event) => {
     state.settings = structuredClone(defaults.settings);
     applySettings();
     persist(true);
-    toast('Preferences reset', 'ok');
+    toast(t('toast.reset'), 'ok');
+    return;
+  }
+
+  const langBtn = target.closest('[data-lang]');
+  if (langBtn) {
+    switchLanguage(langBtn.dataset.lang);
+    return;
+  }
+  if (target.closest('#langToggle')) {
+    const other = availableLanguages().find(([code]) => code !== lang);
+    if (other) switchLanguage(other[0]);
     return;
   }
 
@@ -1196,23 +1282,167 @@ function renderBootMessage(title, body, code) {
   </div>`;
 }
 
-async function loadSource() {
-  if (window.__NOTES_SOURCE__) return window.__NOTES_SOURCE__;
+/* ---------------------------------------------------------------- languages */
 
+/** The whole manifest: from notes.json, or already inlined in the portable build. */
+let manifest = null;
+
+async function loadManifest() {
+  if (window.__NOTES_SOURCE__) return window.__NOTES_SOURCE__;
   const res = await fetch(new URL('notes.json', document.baseURI), { cache: 'no-cache' });
   if (!res.ok) throw new Error(`notes.json could not be read (HTTP ${res.status}).`);
-  const manifest = await res.json();
+  return res.json();
+}
 
-  const files = await Promise.all(
-    (manifest.files || []).map(async (entry) => {
+/**
+ * The manifest's language map. Notes written before the reader was bilingual
+ * have a flat `files` list and no `languages` key; that shape is adopted here as
+ * English, so an older notes.json keeps working untouched.
+ */
+function languagesOf(source) {
+  const declared = source && source.languages;
+  if (declared && Object.keys(declared).length) return declared;
+  return { en: { label: 'English', dir: 'ltr', files: (source && source.files) || [] } };
+}
+
+/**
+ * Note files for one language. The portable build ships them inline as
+ * `{ name, text }`, so nothing is fetched there; the hosted reader fetches each
+ * file, which is what makes editing a note and refreshing enough to see it.
+ */
+async function materialiseFiles(files) {
+  return Promise.all(
+    (files || []).map(async (entry) => {
+      if (entry && typeof entry === 'object' && typeof entry.text === 'string') return entry;
       const name = typeof entry === 'string' ? entry : entry.file;
-      const noteRes = await fetch(new URL(name, document.baseURI), { cache: 'no-cache' });
-      if (!noteRes.ok) throw new Error(`${name} could not be read (HTTP ${noteRes.status}).`);
-      return { name, text: await noteRes.text() };
+      const res = await fetch(new URL(name, document.baseURI), { cache: 'no-cache' });
+      if (!res.ok) throw new Error(`${name} could not be read (HTTP ${res.status}).`);
+      return { name, text: await res.text() };
     }),
   );
+}
 
-  return { title: manifest.title, subtitle: manifest.subtitle, files };
+async function loadBook(code) {
+  const languages = languagesOf(manifest);
+  const entry = languages[code] || languages.en || Object.values(languages)[0];
+  const files = await materialiseFiles(entry.files);
+  return buildBook({
+    title: manifest.title,
+    subtitle: manifest.subtitle,
+    files,
+    labels: {
+      copy: t('code.copy'),
+      copyCode: t('code.copyLabel'),
+      table: t('a11y.table'),
+      code: t('code.lang'),
+      start: t('sidebar.start'),
+    },
+  });
+}
+
+function availableLanguages() {
+  return Object.entries(languagesOf(manifest)).filter(([, entry]) => (entry.files || []).length);
+}
+
+/**
+ * The topbar pill and the settings row are both built from the manifest, so
+ * adding `Assets/de/` and a label is all it takes to offer a third language.
+ * With a single language the pill stays hidden.
+ */
+function renderLanguageUI() {
+  if (!manifest) return;
+  const available = availableLanguages();
+
+  const pill = $('#langToggle');
+  if (pill) {
+    if (available.length > 1) {
+      const other = available.find(([code]) => code !== lang) || available[0];
+      pill.hidden = false;
+      pill.dataset.lang = other[0];
+      pill.setAttribute('title', t('lang.change'));
+      pill.setAttribute('aria-label', t('lang.change'));
+      pill.innerHTML = `${icon('globe')}<span>${escapeHtml(other[1].label || other[0])}</span>`;
+    } else {
+      pill.hidden = true;
+    }
+  }
+
+  const block = $('#langBlock');
+  if (block) block.hidden = available.length < 2;
+
+  const row = $('#langRow');
+  if (row) {
+    const seg = row.querySelector('.seg');
+    if (seg) {
+      seg.innerHTML = available
+        .map(
+          ([code, entry]) =>
+            `<button type="button" data-lang="${escapeHtml(code)}" aria-pressed="${
+              code === lang
+            }">${escapeHtml(entry.label || code)}</button>`,
+        )
+        .join('');
+    }
+  }
+}
+
+/**
+ * Switches language without a page reload.
+ *
+ * Chapters are addressed by number, so the same URL means the same chapter in
+ * every language — which is what lets this keep the reader exactly where they
+ * were: same chapter, same section, same scroll position, and the progress and
+ * bookmarks they had already made.
+ */
+async function switchLanguage(code) {
+  const available = availableLanguages();
+  if (code === lang || !available.some(([c]) => c === code)) return;
+
+  const keepNumber = current ? current.number : null;
+  const keepSection =
+    current && activeSectionId ? current.headings.findIndex((h) => h.id === activeSectionId) : -1;
+
+  lang = code;
+  state.settings.lang = code;
+  persist(true);
+  document.documentElement.lang = lang;
+  document.documentElement.dir = directionOf(lang);
+
+  try {
+    book = await loadBook(lang);
+  } catch (error) {
+    console.error(error);
+    toast(error && error.message ? error.message : t('boot.error.unknown'), 'bad');
+    return;
+  }
+
+  document.title = book.title;
+  if (els.brandTitle) els.brandTitle.textContent = book.title;
+  if (els.brandSub) els.brandSub.textContent = book.subtitle || '';
+
+  applyStaticStrings();
+  renderLanguageUI();
+  renderSidebar();
+  buildIndex();
+
+  const target =
+    (keepNumber !== null && book.chapters.find((c) => c.number === keepNumber)) ||
+    book.chapters[0];
+  if (!target) return;
+
+  renderChapter(target);
+  markActiveNav(target.id);
+  history.replaceState(null, '', `#/${target.id}`);
+
+  if (keepSection >= 0 && target.headings[keepSection]) {
+    scrollToSection(target.headings[keepSection].id, { smooth: false });
+  } else {
+    const saved = state.progress[target.id] || 0;
+    if (saved > 0.04 && saved < 0.97) scrollToRatio(saved);
+    else scrollToTop();
+  }
+  updateProgressUI();
+  updateStarButton();
 }
 
 async function registerServiceWorker() {
@@ -1265,10 +1495,22 @@ function liveReload() {
 
 async function init() {
   try {
-    book = buildBook(await loadSource());
-    if (!book.chapters.length) {
-      throw new Error('No chapters were found. Check the files listed in notes.json.');
-    }
+    manifest = await loadManifest();
+
+    const available = availableLanguages();
+    const wanted = state.settings.lang;
+    lang = available.some(([code]) => code === wanted)
+      ? wanted
+      : available.length
+        ? available[0][0]
+        : 'en';
+    state.settings.lang = lang;
+
+    book = await loadBook(lang);
+    if (!book.chapters.length) throw new Error(t('boot.noChapters'));
+
+    document.documentElement.lang = lang;
+    document.documentElement.dir = directionOf(lang);
 
     document.title = book.title;
     els.brandTitle.textContent = book.title;
@@ -1289,13 +1531,11 @@ async function init() {
     console.error(error);
     const offline = location.protocol === 'file:';
     renderBootMessage(
-      offline ? 'Open the reader through a local server' : 'Your notes could not be loaded',
+      offline ? t('boot.offline.title') : t('boot.error.title'),
       offline
-        ? `<p>Browsers block a page from reading files on your disk, so opening this
-             file directly cannot work. From the project folder run:</p>`
-        : `<p>${escapeHtml(error?.message || 'Unknown error.')}</p>
-           <p>Make sure the note files listed in <code>notes.json</code> exist.</p>`,
-      offline ? 'npm run dev\n\n# or build a portable, server-free file:\nnpm run build' : '',
+        ? t('boot.offline.body')
+        : `<p>${escapeHtml(error?.message || t('boot.error.unknown'))}</p>${t('boot.error.body')}`,
+      offline ? t('boot.offline.code') : '',
     );
   }
 }

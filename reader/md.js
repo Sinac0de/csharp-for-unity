@@ -22,12 +22,37 @@
 
 /* ------------------------------------------------------------------ text utils */
 
-export function escapeHtml(value) {
-  return String(value)
+/**
+ * Wraps a string in Unicode directional isolates (FSI/PDI) so that a chunk of
+ * one script can sit inside a paragraph of the other without the surrounding
+ * text reordering its edges. Inside a Persian paragraph, a Latin run like
+ * `using System.Linq;` would otherwise drag its trailing `;` into RTL
+ * reordering — the reader showed it on the wrong side. Code spans in headings,
+ * captions and labels go through this, and the characters are zero-width, so
+ * a plain-text copy of a section title stays byte-identical.
+ */
+export function ltrIsolate(text) {
+  return `\u2067${text}\u2069`; // FSI … PDI
+}
+
+/**
+ * Escapes HTML. With `{ bidi: true }` the result is wrapped in Unicode
+ * directional isolates, so a Persian caption full of `using System.Linq;`
+ * keeps its `;`, `,` and `()` attached to the Latin code instead of being
+ * dragged to the wrong edge by RTL reordering.
+ */
+export function escapeHtml(value, { bidi = false } = {}) {
+  const escaped = String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+  return bidi ? ltrIsolate(escaped) : escaped;
+}
+
+/** Escape + LTR isolation: for inline code and code captions. */
+function codeSpanHtml(text) {
+  return `<code class="ic" dir="ltr">${ltrIsolate(escapeHtml(text))}</code>`;
 }
 
 export function slugify(text) {
@@ -45,6 +70,22 @@ export function slugify(text) {
 
 const CALLOUT_TAGS = ['tip', 'warn', 'note', 'perf', 'interview', 'recap'];
 
+/**
+ * A callout's tag (`[tip]`, `[warn]`, …) is syntax, never translated. But the
+ * little uppercase label it paints on every callout should speak the reader's
+ * language, so the caller passes a map per language; English is the fallback.
+ * Keys match CALLOUT_TAGS; an unknown tag keeps its raw tag as the label.
+ */
+const CALLOUT_LABELS = {};
+export function setCalloutLabels(labels) {
+  for (const [tag, label] of Object.entries(labels || {})) {
+    if (CALLOUT_TAGS.includes(tag)) CALLOUT_LABELS[tag] = label;
+  }
+}
+function calloutLabel(tag) {
+  return CALLOUT_LABELS[tag] || tag;
+}
+
 /** Word/reading-time estimate. */
 export function estimateWords(text) {
   const words = String(text).trim().split(/\s+/).filter(Boolean).length;
@@ -53,7 +94,12 @@ export function estimateWords(text) {
 
 /* -------------------------------------------------------------- inline markup */
 
-/** Renders inline markdown inside a single block. Input is raw, output is HTML. */
+/**
+ * Renders inline markdown inside a single block. Input is raw, output is HTML.
+ * Code spans go through `codeSpanHtml`, so each one is isolated and pinned to
+ * LTR — which is what keeps a trailing `;` or a pair of `()` sitting on the
+ * code's own side when the surrounding sentence is Persian.
+ */
 export function inline(source) {
   let out = escapeHtml(source);
 
@@ -68,7 +114,7 @@ export function inline(source) {
 
   out = out.replace(
     /\u0001(\d+)\u0001/g,
-    (_, i) => `<code class="ic">${spans[Number(i)]}</code>`,
+    (_, i) => codeSpanHtml(spans[Number(i)]),
   );
   return out;
 }
@@ -227,6 +273,9 @@ function alignmentOf(cell) {
   return 'left';
 }
 
+/** Markdown alignment → direction-relative CSS, so RTL tables align correctly. */
+const SHARED_ALIGN = { left: 'start', right: 'end', center: 'center' };
+
 function isBlockStart(line) {
   return (
     line.trim() === '' ||
@@ -305,20 +354,24 @@ function renderBlocks(lines, ctx) {
       while (body.length && body[body.length - 1].trim() === '') body.pop();
 
       const code = body.join('\n');
-      const label = LANG_LABEL[lang] ?? (lang ? lang.toUpperCase() : 'Code');
+      const label = LANG_LABEL[lang] ?? (lang ? lang.toUpperCase() : ctx.labels.code);
       ctx.stats.code += 1;
       if (code) pushText(caption ? `${caption} ${code}` : code);
 
+      /* Code is always left-to-right. Inside a Persian chapter `dir="ltr"`
+         keeps C# from being reordered into nonsense. */
       html.push(
-        '<figure class="code-block" data-lang="' +
+        '<figure class="code-block" dir="ltr" data-lang="' +
           escapeHtml(lang || 'text') +
           '">' +
           '<figcaption class="code-bar">' +
           (label ? `<span class="code-lang">${escapeHtml(label)}</span>` : '') +
-          (caption ? `<span class="code-title">${escapeHtml(caption)}</span>` : '') +
-          '<button class="code-copy" type="button" data-copy aria-label="Copy code">' +
+          (caption ? `<span class="code-title">${escapeHtml(caption, { bidi: true })}</span>` : '') +
+          `<button class="code-copy" type="button" data-copy aria-label="${escapeHtml(
+            ctx.labels.copyCode,
+          )}">` +
           '<svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15"><path d="M9 9h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
-          '<span>Copy</span>' +
+          `<span>${escapeHtml(ctx.labels.copy)}</span>` +
           '</button>' +
           '</figcaption>' +
           `<pre><code class="language-${escapeHtml(lang || 'text')}">${highlight(code, lang)}</code></pre>` +
@@ -403,11 +456,14 @@ function renderBlocks(lines, ctx) {
       const label = title
         ? `<p class="callout-title">${inline(title)}</p>`
         : '';
+      const badge = `<span class="callout-badge">${ltrIsolate(
+        escapeHtml(calloutLabel(tag)),
+      )}</span>`;
       html.push(
         `<aside class="callout callout-${tag}" role="note" data-tag="${tag}">` +
           `<div class="callout-icon" aria-hidden="true">${CALLOUT_ICONS[tag] || CALLOUT_ICONS.note}</div>` +
           `<div class="callout-main">` +
-          `<span class="callout-badge">${escapeHtml(tag)}</span>` +
+          `${badge}` +
           `${label}${inner}` +
           '</div></aside>',
       );
@@ -435,13 +491,17 @@ function renderBlocks(lines, ctx) {
       const cells = (rowCells, tagName) =>
         rowCells
           .map((cell, index) => {
-            const a = align[index] || 'left';
+            /* `start`/`end` are direction-relative, so an RTL chapter aligns
+               its table from the right edge without a second rule. */
+            const a = SHARED_ALIGN[align[index]] || 'start';
             return `<${tagName} style="text-align:${a}">${inline(cell.trim())}</${tagName}>`;
           })
           .join('');
 
       html.push(
-        '<div class="table-wrap" role="region" tabindex="0" aria-label="Table">' +
+        `<div class="table-wrap" role="region" tabindex="0" aria-label="${escapeHtml(
+          ctx.labels.table,
+        )}">` +
           `<table><thead><tr>${cells(header, 'th')}</tr></thead>` +
           `<tbody>${rows.map((r) => `<tr>${cells(r, 'td')}</tr>`).join('')}</tbody>` +
           '</table></div>',
@@ -515,29 +575,22 @@ const CALLOUT_ICONS = {
     '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 6C4.8 6 3 7.8 3 10s1.8 4 4 4c.4 0 .7 0 1-.1-.4 2-2 3.3-2 3.3l1.6 1.3C10.4 16.6 11 14 11 12c0-3.3-1.8-6-4-6Zm10 0c-2.2 0-4 1.8-4 4s1.8 4 4 4c.4 0 .7 0 1-.1-.4 2-2 3.3-2 3.3l1.6 1.3C20.4 16.6 21 14 21 12c0-3.3-1.8-6-4-6Z"/></svg>',
 };
 
-/** Human label for a callout tag, used by the chapter stats strip. */
-export const CALLOUT_LABELS = {
-  tip: 'Tips',
-  warn: 'Pitfalls',
-  note: 'Unity notes',
-  perf: 'Performance',
-  interview: 'Interview',
-  recap: 'Recaps',
-};
-
 /* -------------------------------------------------------------------- parsing */
 
 /**
  * Parses one chapter body into HTML plus metadata.
  * @returns {{ html: string, headings: Array, text: string, stats: object }}
  */
-export function parseMarkdown(source) {
+export function parseMarkdown(source, labels = {}) {
   const lines = String(source).replace(/\r\n?/g, '\n').split('\n');
   const slugCounts = new Map();
   const ctx = {
     headings: [],
     text: [],
     allowHeadings: true,
+    /* The few words the renderer writes itself. They are translated by the
+       caller, because the parser has no idea which language it is parsing. */
+    labels: { copy: 'Copy', copyCode: 'Copy code', table: 'Table', code: 'Code', ...labels },
     stats: { code: 0, tables: 0, callouts: {}, ul: 0, ol: 0 },
     uniqueId(raw) {
       const base = slugify(inlineText(raw));
@@ -569,14 +622,20 @@ export function parseMarkdown(source) {
  * Turns the raw note files into the navigable book: parts, chapters, metadata.
  * A single file may contain several chapters (it is split on `#` headings).
  *
- * @param {{ title?: string, subtitle?: string, files: Array<{name: string, text: string}> }} source
+ * @param {{ title?: string, subtitle?: string, files: Array, labels?: object }} source
  */
 export function buildBook(source) {
+  const labels = source.labels || {};
   const parts = [];
   const chapters = [];
   const partById = new Map();
 
-  const front = { id: 'start', title: 'Getting Started', description: '', chapters: [] };
+  const front = {
+    id: 'start',
+    title: labels.start || 'Getting Started',
+    description: '',
+    chapters: [],
+  };
   partById.set(front.id, front);
 
   let currentPart = front;
@@ -592,8 +651,12 @@ export function buildBook(source) {
     if (!body && rawTitle === null) return;
 
     const numberMatch = /^(\d+)\s*\.\s*(.*)$/.exec(rawTitle);
-    const parsed = parseMarkdown(body);
-    const id = uniqueId(chapters, rawTitle);
+    const parsed = parseMarkdown(body, labels);
+    /* A numbered chapter is addressed by its number, not by its title: `#/26`
+       is the same URL in every language, which is what lets the language switch
+       land on the chapter you were reading with your progress intact. A chapter
+       without a number (the introduction) keeps a readable slug. */
+    const id = uniqueId(chapters, numberMatch ? numberMatch[1] : rawTitle);
 
     const chapter = {
       id,

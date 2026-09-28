@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-theme="light" data-font="sans" data-size="m" data-width="normal" data-leading="normal">
+<html lang="en" dir="ltr" data-theme="light" data-font="sans" data-size="m" data-width="normal" data-leading="normal">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>C# for Unity</title>
-  <meta name="description" content="A reading experience for a C# and Unity handbook.">
+  <meta name="description" content="A reading experience for a C# and Unity handbook — English and Persian.">
   <meta name="theme-color" content="#ffffff">
   <meta name="color-scheme" content="light dark">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,7 +15,9 @@
   <link rel="apple-touch-icon" href="reader/icons/icon-192.png">
   <link rel="stylesheet" href="reader/app.css">
   <script>
-    /* Apply the saved theme before first paint so there is no flash. */
+    /* Apply the saved theme and language before first paint so there is no
+       flash — neither a light page in dark mode, nor a left-to-right layout
+       for a reader who reads Persian. */
     (function () {
       try {
         var stored = JSON.parse(localStorage.getItem('csharp-unity-reader') || '{}');
@@ -29,6 +31,9 @@
         if (s.size) root.dataset.size = s.size;
         if (s.width) root.dataset.width = s.width;
         if (s.leading) root.dataset.leading = s.leading;
+        var lang = s.lang || 'en';
+        root.lang = lang;
+        root.dir = /^(fa|ar|he|ur)/.test(lang) ? 'rtl' : 'ltr';
         if (s.focus) document.addEventListener('DOMContentLoaded', function () {
           document.body.dataset.focus = 'true';
         });
@@ -41,7 +46,7 @@
 
   <div id="app" hidden>
     <header class="topbar">
-      <button class="icon-btn hamburger" id="menuToggle" type="button" aria-label="Open contents">
+      <button class="icon-btn hamburger" id="menuToggle" type="button" aria-label="Open contents" data-i18n-aria="menu.open">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
 
@@ -57,37 +62,39 @@
 
       <button class="search-trigger" id="searchTrigger" type="button">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <span class="search-label">Search the handbook</span>
+        <span class="search-label" data-i18n="search.trigger">Search the handbook</span>
         <span class="kbd" id="searchShortcut">⌘K</span>
       </button>
 
+      <!-- Filled by the reader from notes.json, and hidden when the handbook is
+           available in one language only. -->
+      <button class="lang-btn" id="langToggle" type="button" hidden></button>
+
       <span class="divider-v" aria-hidden="true"></span>
 
-      <button class="icon-btn" id="navStar" type="button" aria-pressed="false" aria-label="Bookmark this chapter" title="Bookmark this chapter">
+      <button class="icon-btn" id="navStar" type="button" aria-pressed="false" aria-label="Bookmark this chapter" data-i18n-aria="topbar.bookmark" title="Bookmark this chapter" data-i18n-title="topbar.bookmark">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9Z"/></svg>
       </button>
       <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle theme">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg>
       </button>
-      <button class="icon-btn" id="focusModeToggle" type="button" aria-pressed="false" aria-label="Focus mode" title="Focus mode (f) — hide everything but the chapter">
+      <button class="icon-btn" id="focusModeToggle" type="button" aria-pressed="false" aria-label="Focus mode" data-i18n-aria="sheet.focus" title="Focus mode (f) — hide everything but the chapter" data-i18n-title="topbar.focus">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5.6A1.6 1.6 0 0 1 5.6 4H9M15 4h3.4A1.6 1.6 0 0 1 20 5.6V9M20 15v3.4a1.6 1.6 0 0 1-1.6 1.6H15M9 20H5.6A1.6 1.6 0 0 1 4 18.4V15"/></svg>
       </button>
-      <button class="icon-btn" id="settingsToggle" type="button" aria-label="Reading settings" title="Reading settings">
+      <button class="icon-btn" id="settingsToggle" type="button" aria-label="Reading settings" data-i18n-aria="topbar.settings" title="Reading settings" data-i18n-title="topbar.settings">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2"/><circle cx="10" cy="16" r="2"/></svg>
       </button>
     </header>
 
     <div class="shell">
-      <aside class="sidebar" id="sidebar" aria-label="Table of contents">
+      <aside class="sidebar" id="sidebar" aria-label="Table of contents" data-i18n-aria="sidebar.contents">
         <div id="resumeSlot"></div>
         <nav id="sidebarNav" aria-label="Chapters"></nav>
         <div id="bookmarksSlot"></div>
         <div class="sidebar-foot">
-          <div class="sidebar-stat"><span id="sidebarReadLabel">0 of 0 chapters read</span><b id="sidebarProgressLabel">0%</b></div>
+          <div class="sidebar-stat"><span id="sidebarReadLabel"></span><b id="sidebarProgressLabel"></b></div>
           <div class="mini-track"><div class="mini-fill" id="sidebarProgressFill"></div></div>
-          <p class="sidebar-hint">
-            Press <span class="kbd">/</span> to search, <span class="kbd">[</span> <span class="kbd">]</span> to move between chapters.
-          </p>
+          <p class="sidebar-hint" data-i18n-html="sidebar.hint"></p>
         </div>
       </aside>
 
@@ -96,19 +103,19 @@
         <div id="printAll" aria-hidden="true"></div>
       </main>
 
-      <aside class="rail" id="rail" aria-label="On this page">
-        <p class="rail-head">On this page</p>
+      <aside class="rail" id="rail" aria-label="On this page" data-i18n-aria="rail.title">
+        <p class="rail-head" data-i18n="rail.title">On this page</p>
         <ul class="rail-list" id="railList"></ul>
       </aside>
     </div>
 
-    <button class="fab" id="fab" type="button" aria-label="Back to top">
+    <button class="fab" id="fab" type="button" aria-label="Back to top" data-i18n-aria="topbar.top">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
     </button>
 
-    <button class="focus-exit" id="focusExit" type="button" title="Leave focus mode (Esc)">
+    <button class="focus-exit" id="focusExit" type="button" title="Leave focus mode (Esc)" data-i18n-title="focus.exit">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v3.4A1.6 1.6 0 0 1 7.4 9H4M20 9h-3.4A1.6 1.6 0 0 1 15 7.4V4M15 20v-3.4a1.6 1.6 0 0 1 1.6-1.6H20M4 15h3.4A1.6 1.6 0 0 1 9 16.6V20"/></svg>
-      <span>Exit focus mode</span>
+      <span data-i18n="focus.exit">Exit focus mode</span>
       <span class="kbd">Esc</span>
     </button>
 
@@ -117,49 +124,58 @@
 
   <div class="boot" id="boot" hidden></div>
 
-  <div class="overlay" id="searchOverlay" data-open="false" role="dialog" aria-modal="true" aria-label="Search">
+  <div class="overlay" id="searchOverlay" data-open="false" role="dialog" aria-modal="true" aria-label="Search" data-i18n-aria="search.trigger">
     <div class="palette">
       <div class="palette-search">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="searchInput" type="search" placeholder="Search chapters, sections and code…"
+               data-i18n-ph="search.placeholder"
                autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search query">
         <span class="kbd">Esc</span>
-        <button class="icon-btn palette-close" id="searchClose" type="button" aria-label="Close search" data-close-search>
+        <button class="icon-btn palette-close" id="searchClose" type="button" aria-label="Close search" data-i18n-aria="search.close" data-close-search>
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
       </div>
       <div class="palette-body" id="searchResults"></div>
       <div class="palette-foot" id="searchFoot" hidden>
-        <span><span class="kbd">↑</span><span class="kbd">↓</span> navigate</span>
-        <span><span class="kbd">↵</span> open</span>
+        <span><span class="kbd">↑</span><span class="kbd">↓</span> <span data-i18n="search.navigate">navigate</span></span>
+        <span><span class="kbd">↵</span> <span data-i18n="search.open">open</span></span>
         <span class="spacer"></span>
-        <span>Results are ranked by title and frequency</span>
+        <span data-i18n="search.ranked">Results are ranked by title and frequency</span>
       </div>
     </div>
   </div>
 
   <div class="sheet" id="settingsSheet" data-open="false" role="dialog" aria-label="Reading settings">
-    <p class="sheet-title">Appearance</p>
+    <div id="langBlock" hidden>
+      <div class="opt-row" id="langRow">
+        <label data-i18n="lang.switch">Language</label>
+        <div class="seg" role="group" aria-label="Language" data-i18n-aria="lang.switch"></div>
+      </div>
+      <div class="sheet-divider"></div>
+    </div>
+
+    <p class="sheet-title" data-i18n="sheet.appearance">Appearance</p>
 
     <div class="opt-row" data-setting="theme">
-      <label>Theme</label>
+      <label data-i18n="sheet.theme">Theme</label>
       <div class="seg">
-        <button type="button" data-value="auto">Auto</button>
-        <button type="button" data-value="light">Light</button>
-        <button type="button" data-value="dark">Dark</button>
+        <button type="button" data-value="auto" data-i18n="sheet.theme.auto">Auto</button>
+        <button type="button" data-value="light" data-i18n="sheet.theme.light">Light</button>
+        <button type="button" data-value="dark" data-i18n="sheet.theme.dark">Dark</button>
       </div>
     </div>
 
     <div class="opt-row" data-setting="font">
-      <label>Typeface</label>
+      <label data-i18n="sheet.font">Typeface</label>
       <div class="seg">
-        <button type="button" data-value="sans">Sans</button>
-        <button type="button" data-value="serif">Serif</button>
+        <button type="button" data-value="sans" data-i18n="sheet.font.sans">Sans</button>
+        <button type="button" data-value="serif" data-i18n="sheet.font.serif">Serif</button>
       </div>
     </div>
 
     <div class="opt-row" data-setting="size">
-      <label>Text size</label>
+      <label data-i18n="sheet.size">Text size</label>
       <div class="seg">
         <button type="button" data-value="s">S</button>
         <button type="button" data-value="m">M</button>
@@ -169,53 +185,48 @@
     </div>
 
     <div class="opt-row" data-setting="leading">
-      <label>Line spacing</label>
+      <label data-i18n="sheet.leading">Line spacing</label>
       <div class="seg">
-        <button type="button" data-value="tight">Tight</button>
-        <button type="button" data-value="normal">Normal</button>
-        <button type="button" data-value="loose">Loose</button>
+        <button type="button" data-value="tight" data-i18n="sheet.leading.tight">Tight</button>
+        <button type="button" data-value="normal" data-i18n="sheet.leading.normal">Normal</button>
+        <button type="button" data-value="loose" data-i18n="sheet.leading.loose">Loose</button>
       </div>
     </div>
 
     <div class="opt-row" data-setting="width">
-      <label>Reading width</label>
+      <label data-i18n="sheet.width">Reading width</label>
       <div class="seg">
-        <button type="button" data-value="narrow">Narrow</button>
-        <button type="button" data-value="normal">Normal</button>
-        <button type="button" data-value="wide">Wide</button>
+        <button type="button" data-value="narrow" data-i18n="sheet.width.narrow">Narrow</button>
+        <button type="button" data-value="normal" data-i18n="sheet.width.normal">Normal</button>
+        <button type="button" data-value="wide" data-i18n="sheet.width.wide">Wide</button>
       </div>
     </div>
 
     <div class="sheet-divider"></div>
 
     <div class="opt-row" data-setting="focus">
-      <label>Focus mode</label>
+      <label data-i18n="sheet.focus">Focus mode</label>
       <div class="seg">
-        <button type="button" data-value="false">Off</button>
-        <button type="button" data-value="true">On</button>
+        <button type="button" data-value="false" data-i18n="sheet.off">Off</button>
+        <button type="button" data-value="true" data-i18n="sheet.on">On</button>
       </div>
     </div>
 
     <div class="sheet-divider"></div>
 
-    <button class="sheet-reset" id="printBtn" type="button" style="border-color:var(--border)">
+    <button class="sheet-reset" id="printBtn" type="button" style="border-color:var(--border)" data-i18n="sheet.print">
       Print / export the whole handbook to PDF
     </button>
-    <button class="sheet-reset" id="resetBtn" type="button">Reset preferences</button>
+    <button class="sheet-reset" id="resetBtn" type="button" data-i18n="sheet.reset">Reset preferences</button>
 
-    <p class="sheet-note">
-      Keyboard — <b>/</b> or <b>Ctrl K</b> search, <b>[</b> <b>]</b> previous &amp; next
-      chapter, <b>f</b> focus mode, <b>t</b> theme, <b>s</b> bookmark, <b>g</b> top of
-      page, <b>Esc</b> leave focus mode. Shortcuts follow the physical key, so they
-      work on any keyboard layout.
-    </p>
+    <p class="sheet-note" data-i18n-html="sheet.keyboard"></p>
 
     <a class="colophon" href="https://github.com/Sinac0de/csharp-for-unity"
        target="_blank" rel="noopener noreferrer">
       <svg class="icon colophon-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
       <span class="colophon-body">
         <span class="colophon-repo">Sinac0de / csharp-for-unity</span>
-        <span class="colophon-line">Star it if this saved you a debugging session.</span>
+        <span class="colophon-line" data-i18n="colophon.line">Star it if this saved you a debugging session.</span>
       </span>
       <svg class="icon colophon-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
       <span class="sr-only">— opens on GitHub in a new tab</span>

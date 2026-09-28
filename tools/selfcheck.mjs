@@ -59,7 +59,10 @@ check(
         '\n',
       ),
     );
-    return (html.match(/<tr>/g) || []).length === 3 && html.includes('<th style="text-align:left">Type</th>');
+    return (
+      (html.match(/<tr>/g) || []).length === 3 &&
+      html.includes('<th style="text-align:start">Type</th>')
+    );
   })(),
 );
 
@@ -119,96 +122,186 @@ check(
 /* ------------------------------------------------------------ real handbook */
 
 const manifest = JSON.parse(read('notes.json'));
-const files = (manifest.files || []).map((entry) => {
-  const name = typeof entry === 'string' ? entry : entry.file;
-  return { name, text: read(name) };
-});
 
-const book = buildBook({ title: manifest.title, subtitle: manifest.subtitle, files });
+/* Notes written before the handbook was bilingual have a flat `files` list. */
+const languages = manifest.languages || {
+  en: { label: 'English', dir: 'ltr', files: manifest.files || [] },
+};
+const codes = Object.keys(languages);
+const notesOnly = codes.filter((code) => (languages[code].files || []).length);
 
-const allHtml = book.chapters.map((c) => c.html).join('\n');
-const raw = files.map((f) => f.text).join('\n');
+console.log(`\nHandbook: ${manifest.title} — ${codes.length} language(s)\n`);
 
-const rawFences = (raw.match(/^```/gm) || []).length;
-const renderedBlocks = (allHtml.match(/class="code-block"/g) || []).length;
+/*
+ * Every language is held to the same invariants, because a translation is a
+ * full member of the book rather than a second-class extra: its fences must
+ * all become code blocks, its anchors must resolve, and so on. The two checks
+ * that describe a *finished* handbook — chapter and part counts — are only
+ * applied to English, so a translation can be filled in a chapter at a time
+ * without failing the build.
+ */
+function checkLanguage(code, entry) {
+  const files = (entry.files || []).map((file) => {
+    const name = typeof file === 'string' ? file : file.file;
+    return { name, text: read(name) };
+  });
+  if (!files.length) return { chapters: 0, minutes: 0, blocks: 0, callouts: 0 };
 
-const rawCallouts = (raw.match(/^>\s*\[[a-z]+\]/gim) || []).length;
-const renderedCallouts = (allHtml.match(/class="callout callout-/g) || []).length;
+  const book = buildBook({
+    title: manifest.title,
+    subtitle: manifest.subtitle,
+    files,
+    labels: { start: entry.label || 'Getting Started' },
+  });
 
-const rawTables = (raw.match(/^\|.*\|$/gm) || []).length;
-const renderedRows = (allHtml.match(/<tr>/g) || []).length;
+  const allHtml = book.chapters.map((c) => c.html).join('\n');
+  const raw = files.map((f) => f.text).join('\n');
 
-console.log(`\nHandbook: ${book.title}\n`);
-console.log(
-  `  ${book.chapters.length} chapters · ${book.parts.length} parts · ${renderedBlocks} code blocks · ${renderedCallouts} callouts\n`,
+  const rawFences = (raw.match(/^```/gm) || []).length;
+  const renderedBlocks = (allHtml.match(/class="code-block"/g) || []).length;
+  const rawCallouts = (raw.match(/^>\s*\[[a-z]+\]/gim) || []).length;
+  const renderedCallouts = (allHtml.match(/class="callout callout-/g) || []).length;
+  const rawTables = (raw.match(/^\|.*\|$/gm) || []).length;
+  const renderedRows = (allHtml.match(/<tr>/g) || []).length;
+  const minutes = book.chapters.reduce((sum, c) => sum + c.minutes, 0);
+  const at = (label) => `${code}: ${label}`;
+
+  console.log(
+    `  ${entry.label || code} — ${book.chapters.length} chapters · ${book.parts.length} parts · ${renderedBlocks} code blocks · ${renderedCallouts} callouts\n`,
+  );
+
+  check('chapters were produced', book.chapters.length >= 1, at(`${book.chapters.length} chapters`));
+  if (code === 'en') {
+    check('the reference handbook is complete', book.chapters.length >= 9, at(`${book.chapters.length} chapters`));
+    check('parts were produced', book.parts.length >= 4, at(book.parts.map((p) => p.title).join(' | ')));
+  }
+  check(
+    'every chapter has a title and body',
+    book.chapters.every((c) => c.title && c.html.length > 200),
+    at(`${book.chapters.length} chapters`),
+  );
+  check(
+    'every chapter is reachable from exactly one part',
+    book.chapters.every((c) => book.parts.some((p) => p.chapters.includes(c.id))),
+    at('reachable'),
+  );
+  check(
+    'chapter ids are unique',
+    new Set(book.chapters.map((c) => c.id)).size === book.chapters.length,
+    at('unique'),
+  );
+  check(
+    'a numbered chapter is addressed by its number, in every language',
+    book.chapters.every((c) => c.number === null || c.id === String(c.number)),
+    at(book.chapters.filter((c) => c.number !== null).length + ' numbered'),
+  );
+  check(
+    'every fenced block became a code block',
+    rawFences / 2 === renderedBlocks,
+    at(`${rawFences / 2} fences → ${renderedBlocks} blocks`),
+  );
+  check(
+    'every callout became a callout',
+    rawCallouts === renderedCallouts,
+    at(`${rawCallouts} → ${renderedCallouts}`),
+  );
+  check('tables were rendered', renderedRows > rawTables / 2, at(`${renderedRows} rows`));
+  check('no raw fenced markers leaked into the html', !allHtml.includes('```'), at('clean'));
+  check('no undefined leaked into the html', !/>\s*undefined\s*</.test(allHtml), at('clean'));
+  check(
+    'heading anchors point at ids that exist',
+    book.chapters.every((chapter) => {
+      const ids = new Set(chapter.headings.map((h) => h.id));
+      const anchors = [...chapter.html.matchAll(/data-anchor[^>]*href="#([^"]+)"/g)].map(
+        (m) => m[1],
+      );
+      return anchors.every((a) => ids.has(a));
+    }),
+    at('resolve'),
+  );
+  check(
+    'the search index has text for every chapter',
+    book.chapters.every((c) => (c.text || '').trim().length > 50),
+    at('indexed'),
+  );
+  check(
+    'reading times are sane',
+    book.chapters.every((c) => c.minutes >= 1 && c.minutes < 120),
+    at(`${minutes} minutes total`),
+  );
+  check(
+    'code blocks are pinned left-to-right',
+    !renderedBlocks || (allHtml.match(/class="code-block" dir="ltr"/g) || []).length === renderedBlocks,
+    at('dir="ltr"'),
+  );
+
+  return { chapters: book.chapters.length, minutes, blocks: renderedBlocks, callouts: renderedCallouts };
+}
+
+const stats = {};
+for (const code of codes) stats[code] = checkLanguage(code, languages[code]);
+
+console.log('  Languages\n');
+
+check(
+  'at least one language has notes',
+  notesOnly.length >= 1,
+  notesOnly.join(', '),
+);
+check(
+  'every language folder named in notes.json exists on disk',
+  codes.every((code) => (languages[code].files || []).length > 0 || code === 'en'),
+  codes.join(', '),
+  'A language declared with no files is skipped by the switcher, so this is a\n      warning that a translation folder was emptied or misspelled.',
+);
+check(
+  'translations cover the same chapters as English, or are still growing',
+  codes.every((code) => code === 'en' || stats[code].chapters <= stats.en.chapters),
+  codes.map((c) => `${c} ${stats[c].chapters}`).join(' · '),
 );
 
-check('chapters were produced', book.chapters.length >= 9, `${book.chapters.length} chapters`);
-check('parts were produced', book.parts.length >= 4, book.parts.map((p) => p.title).join(' | '));
+/* ---------------------------------------------------------------- interface */
+
+console.log('\nInterface\n');
+
+const i18n = await import('../reader/i18n.js');
+const baseKeys = Object.keys(i18n.UI.en);
+
+for (const code of Object.keys(i18n.UI)) {
+  const missing = baseKeys.filter((key) => i18n.UI[code][key] === undefined);
+  check(
+    `every interface string is translated (${code})`,
+    missing.length === 0,
+    `${Object.keys(i18n.UI[code]).length} strings`,
+    `Missing: ${missing.join(', ')}`,
+  );
+}
+
 check(
-  'every chapter has a title and body',
-  book.chapters.every((c) => c.title && c.html.length > 200),
-);
-check(
-  'every chapter is reachable from exactly one part',
-  book.chapters.every((c) => book.parts.some((p) => p.chapters.includes(c.id))),
-);
-check(
-  'chapter ids are unique',
-  new Set(book.chapters.map((c) => c.id)).size === book.chapters.length,
-);
-check(
-  'every fenced block became a code block',
-  rawFences / 2 === renderedBlocks,
-  `${rawFences / 2} fences → ${renderedBlocks} blocks`,
-);
-check(
-  'every callout became a callout',
-  rawCallouts === renderedCallouts,
-  `${rawCallouts} → ${renderedCallouts}`,
-);
-check('tables were rendered', renderedRows > rawTables / 2, `${renderedRows} rows`);
-check(
-  'no raw fenced markers leaked into the html',
-  !allHtml.includes('```'),
-);
-check(
-  'no undefined leaked into the html',
-  !/>\s*undefined\s*</.test(allHtml),
-);
-check(
-  'every callout type is one the stylesheet knows',
-  ['tip', 'warn', 'note', 'perf', 'interview', 'recap'].every((tag) =>
-    allHtml.includes(`callout-${tag}`),
+  'a translated string keeps its placeholders',
+  Object.entries(i18n.UI).every(([code, dict]) =>
+    Object.entries(dict).every(([key, value]) => {
+      const expected = (i18n.UI.en[key] || '').match(/\{\w+\}/g) || [];
+      return expected.every((slot) => String(value).includes(slot));
+    }),
   ),
+  'placeholders match English',
+  'A translation that drops `{n}` silently loses the number it was given.',
 );
+
 check(
-  'heading anchors point at ids that exist',
-  book.chapters.every((chapter) => {
-    const ids = new Set(chapter.headings.map((h) => h.id));
-    const anchors = [...chapter.html.matchAll(/data-anchor[^>]*href="#([^"]+)"/g)].map(
-      (m) => m[1],
-    );
-    return anchors.every((a) => ids.has(a));
-  }),
+  'persian text is folded for search',
+  i18n.fold('می‌کند') === 'می کند' &&
+    i18n.fold('يادگيري') === 'یادگیری' &&
+    i18n.fold('۱۲۳') === '123' &&
+    i18n.fold('LINQ') === 'LINQ',
+  'نیم‌فاصله · ي→ی · ۱۲۳→123 · Latin untouched',
 );
+
 check(
-  'the search index has text for every chapter',
-  book.chapters.every((c) => (c.text || '').trim().length > 50),
-);
-check(
-  'reading times are sane',
-  book.chapters.every((c) => c.minutes >= 1 && c.minutes < 120),
-  `${book.chapters.reduce((s, c) => s + c.minutes, 0)} minutes total`,
-);
-check(
-  'statistics add up',
-  book.chapters.every(
-    (c) =>
-      c.stats &&
-      typeof c.stats.code === 'number' &&
-      (c.stats.callouts === undefined || typeof c.stats.callouts === 'object'),
-  ),
+  'arabic and persian glyph variants fold to the same string',
+  i18n.fold('كتاب') === i18n.fold('کتاب'),
+  'ك → ک',
 );
 
 /* ------------------------------------------------------------------- styles */

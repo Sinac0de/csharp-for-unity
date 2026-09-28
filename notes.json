@@ -1,17 +1,38 @@
 {
   "title": "C# for Unity",
   "subtitle": "The handbook a Unity developer reads every day",
-  "author": "",
-  "files": [
-    "Assets/00_intro.md",
-    "Assets/10_part1_a.md",
-    "Assets/11_part1_b.md",
-    "Assets/12_part1_c.md",
-    "Assets/20_part2_a.md",
-    "Assets/21_part2_b.md",
-    "Assets/22_part2_c.md",
-    "Assets/30_part3_a.md",
-    "Assets/31_part3_b.md",
-    "Assets/40_part4.md"
-  ]
+  "author": "Sina Moradian",
+  "languages": {
+    "en": {
+      "label": "English",
+      "dir": "ltr",
+      "files": [
+        "Assets/00_intro.md",
+        "Assets/10_part1_a.md",
+        "Assets/11_part1_b.md",
+        "Assets/12_part1_c.md",
+        "Assets/20_part2_a.md",
+        "Assets/21_part2_b.md",
+        "Assets/22_part2_c.md",
+        "Assets/30_part3_a.md",
+        "Assets/31_part3_b.md",
+        "Assets/40_part4.md"
+      ]
+    },
+    "fa": {
+      "label": "فارسی",
+      "dir": "rtl",
+      "files": [
+        "Assets/fa/00_intro.md",
+        "Assets/fa/10_part1_a.md",
+        "Assets/fa/11_part1_b.md",
+        "Assets/fa/12_part1_c.md",
+        "Assets/fa/20_part2_a.md",
+        "Assets/fa/21_part2_b.md",
+        "Assets/fa/22_part2_c.md",
+        "Assets/fa/30_part3_a.md",
+        "Assets/fa/31_part3_b.md"
+      ]
+    }
+  }
 }

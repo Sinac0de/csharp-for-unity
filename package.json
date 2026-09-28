@@ -4,6 +4,15 @@
   "private": true,
   "type": "module",
   "description": "A focused reading experience for a C# and Unity developer handbook written in Markdown.",
+  "author": "Sina Moradian",
+  "homepage": "https://github.com/Sinac0de/csharp-for-unity",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sinac0de/csharp-for-unity.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sinac0de/csharp-for-unity/issues"
+  },
   "scripts": {
     "dev": "node tools/serve.mjs --open",
     "serve": "node tools/serve.mjs",

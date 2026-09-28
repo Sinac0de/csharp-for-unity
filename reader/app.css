@@ -14,6 +14,11 @@
     serif;
   --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code",
     "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  /* A Persian stack: it prefers a good Persian webfont if the reader has one
+     installed, then the best system face per platform. Tahoma is the reliable
+     fallback on Windows, where Segoe UI's Arabic coverage is thin. */
+  --font-fa: "Vazirmatn", "Vazir", "IRANSansX", "IRANSans", "Sahel",
+    "Noto Naskh Arabic", "Geeza Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
 
   --bg: #f4f5f8;
   --panel: #ffffff;
@@ -127,6 +132,28 @@
     --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.65), 0 2px 8px -3px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 32px 70px -24px rgba(0, 0, 0, 0.8), 0 10px 24px -14px rgba(0, 0, 0, 0.6);
   }
+}
+
+/*
+ * Persian typography.
+ *
+ * Two things have to change when the interface language is Persian. The type
+ * stack, because a Latin-first stack renders Persian through whatever fallback
+ * the system happens to pick. And letter-spacing, which is a Latin typographic
+ * habit: Persian is a joined script, so tracking tears words into disconnected
+ * letters (`ف ر ه ن گ` instead of `فرهنگ`). The labels that are tracked-out
+ * small caps in Latin are exactly the ones that would look broken.
+ */
+html[lang="fa"] {
+  --font-sans: var(--font-fa);
+  --font-serif: var(--font-fa);
+  --reading-font: var(--font-fa);
+}
+html[lang="fa"] *,
+html[lang="fa"] *::before,
+html[lang="fa"] *::after {
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 /* Reader preferences, applied to <html> by the app. */
@@ -437,7 +464,36 @@ a:hover {
   background: var(--surface);
 }
 .search-trigger .kbd {
-  margin-left: auto;
+  margin-inline-start: auto;
+}
+
+/* The language pill. Hidden until the handbook exists in more than one
+   language, so a single-language reader never sees it. */
+.lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 560;
+  white-space: nowrap;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+.lang-btn:hover {
+  color: var(--text-strong);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+.lang-btn .icon {
+  width: 15px;
+  height: 15px;
+  opacity: 0.75;
 }
 
 .kbd {
@@ -478,7 +534,7 @@ a:hover {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 18px 14px 28px;
-  border-right: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
   background: var(--panel);
   display: flex;
   flex-direction: column;
@@ -515,7 +571,7 @@ a:hover {
   border-radius: var(--radius);
   border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
   background: linear-gradient(140deg, var(--accent-soft), transparent 70%);
-  text-align: left;
+  text-align: start;
   transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 .resume-card:hover {
@@ -593,7 +649,7 @@ a:hover {
 .nav-row[data-current="true"]::before {
   content: "";
   position: absolute;
-  left: 2px;
+  inset-inline-start: 2px;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
@@ -658,7 +714,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding-right: 6px;
+  padding-inline-end: 6px;
 }
 
 .nav-act {
@@ -942,7 +998,7 @@ a:hover {
 
 .h-anchor {
   position: absolute;
-  left: -1.15em;
+  inset-inline-start: -1.15em;
   top: 50%;
   transform: translateY(-50%);
   width: 1em;
@@ -971,7 +1027,7 @@ a:hover {
 .chapter ul,
 .chapter ol {
   margin: 0 0 1.15em;
-  padding-left: 1.35em;
+  padding-inline-start: 1.35em;
 }
 .chapter li {
   margin: 0.35em 0;
@@ -1015,6 +1071,9 @@ a:hover {
   color: color-mix(in srgb, var(--accent) 72%, var(--text-strong));
   white-space: nowrap;
   word-break: break-word;
+  /* A code span is Latin even inside a Persian sentence: isolating it keeps
+     trailing punctuation like `;` on the code's own side, never flipped. */
+  unicode-bidi: isolate;
 }
 
 .quote-heading {
@@ -1095,6 +1154,18 @@ a:hover {
   color: var(--c);
   margin-bottom: 6px;
 }
+
+/* The callout badge is Persian when the chapter is, so it joins like Persian
+   text; the isolated Latin tag it may contain still protects itself. */
+html[lang="fa"] .callout-badge {
+  letter-spacing: normal;
+  font-size: 0.72rem;
+}
+html[lang="fa"] .code-bar .code-title {
+  letter-spacing: normal;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
 .callout-title {
   margin: 0 0 0.5em;
   font-family: var(--font-sans);
@@ -1112,7 +1183,7 @@ a:hover {
 .callout-main ul,
 .callout-main ol {
   margin: 0 0 0.4em;
-  padding-left: 0;
+  padding-inline-start: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
@@ -1121,12 +1192,12 @@ a:hover {
 .callout-main li {
   margin: 0;
   position: relative;
-  padding-left: 1.65em;
+  padding-inline-start: 1.65em;
 }
 .callout-main li::before {
   content: "";
   position: absolute;
-  left: 0.1em;
+  inset-inline-start: 0.1em;
   top: 0.42em;
   width: 0.62em;
   height: 0.36em;
@@ -1193,7 +1264,7 @@ a:hover {
 
 .code-copy {
   flex: none;
-  margin-left: auto;
+  margin-inline-start: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1335,7 +1406,7 @@ a:hover {
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--surface);
-  text-align: left;
+  text-align: start;
   transition: all var(--dur) var(--ease);
 }
 .foot-btn:hover {
@@ -1388,22 +1459,23 @@ a:hover {
   text-transform: uppercase;
   color: var(--faint);
   margin-bottom: 12px;
-  padding-left: 11px;
+  padding-inline-start: 11px;
 }
 .rail-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-left: 1px solid var(--border);
+  border-inline-start: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
 .rail-link {
   display: block;
-  padding: 5px 8px 5px 11px;
-  margin-left: -1px;
-  border-left: 2px solid transparent;
+  padding-block: 5px;
+  padding-inline: 11px 8px;
+  margin-inline-start: -1px;
+  border-inline-start: 2px solid transparent;
   color: var(--muted);
   line-height: 1.42;
   transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
@@ -1413,17 +1485,17 @@ a:hover {
   text-decoration: none;
 }
 .rail-link[data-level="3"] {
-  padding-left: 24px;
+  padding-inline-start: 24px;
   font-size: 0.94em;
 }
 .rail-link[aria-current="true"] {
   color: var(--accent);
-  border-left-color: var(--accent);
+  border-inline-start-color: var(--accent);
   font-weight: 570;
 }
 .rail-empty {
   color: var(--faint);
-  padding-left: 11px;
+  padding-inline-start: 11px;
   font-size: 0.8em;
 }
 
@@ -1431,7 +1503,7 @@ a:hover {
 
 .fab {
   position: fixed;
-  right: 22px;
+  inset-inline-end: 22px;
   bottom: 22px;
   z-index: 55;
   width: 42px;
@@ -1464,7 +1536,7 @@ a:hover {
 .focus-exit {
   position: fixed;
   top: calc(14px + env(safe-area-inset-top));
-  right: 16px;
+  inset-inline-end: 16px;
   z-index: 95;
   display: none;
   align-items: center;
@@ -1686,7 +1758,7 @@ body[data-focus="true"] .focus-exit {
   position: fixed;
   z-index: 101;
   top: calc(var(--topbar-h) + 8px);
-  right: 14px;
+  inset-inline-end: 14px;
   width: min(330px, calc(100vw - 28px));
   /* The panel is taller than a phone in landscape. Let it scroll rather than
      run off the bottom of the screen where nothing can reach it. */
@@ -1866,7 +1938,7 @@ body[data-focus="true"] .focus-exit {
 
 .toasts {
   position: fixed;
-  left: 50%;
+  inset-inline-start: 50%;
   bottom: 26px;
   transform: translateX(-50%);
   z-index: 110;
@@ -1979,17 +2051,26 @@ body[data-nav="open"] .scrim {
     position: fixed;
     top: var(--topbar-h);
     bottom: auto;
-    left: 0;
+    inset-inline-start: 0;
     /* Explicit height: relying on top/bottom alone lets the drawer grow to its
        content and push its own footer off-screen. */
     height: calc(100vh - var(--topbar-h));
     height: calc(100dvh - var(--topbar-h));
     width: min(90vw, 340px);
     z-index: 60;
-    transform: translateX(-102%);
+    /* 105%, not 100%: a vertical scrollbar shortens the resting position, so a
+       smaller overshoot leaves a sliver of the drawer showing at the edge. */
+    transform: translateX(-105%);
     transition: transform 280ms var(--ease);
     box-shadow: var(--shadow-lg);
-    border-right: 1px solid var(--border);
+    border-inline-end: 1px solid var(--border);
+  }
+  /* Right-to-left: the drawer slides in from the right, and has to wait off the
+     right edge. A literal value rather than a custom property: substituting a
+     var() here made the transform invalid-at-computed-value-time (i.e. identity),
+     which left the closed drawer sitting on top of the page. */
+  html[dir="rtl"] .sidebar {
+    transform: translateX(105%);
   }
   body[data-nav="open"] .sidebar {
     transform: none;
@@ -2067,11 +2148,11 @@ body[data-nav="open"] .scrim {
     display: none;
   }
   .fab {
-    right: 14px;
+    inset-inline-end: 14px;
     bottom: calc(14px + env(safe-area-inset-bottom));
   }
   .focus-exit {
-    right: 12px;
+    inset-inline-end: 12px;
     top: calc(10px + env(safe-area-inset-top));
     opacity: 0.9;
   }

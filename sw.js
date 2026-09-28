@@ -7,7 +7,7 @@
  * handbook keeps working on a plane, a train, or a flaky hotel Wi-Fi.
  */
 
-const VERSION = 'cu-reader-v2';
+const VERSION = 'cu-reader-v4';
 
 /* This file must sit at the site root: a service worker can only cache requests
    inside its own scope, and the notes live in Assets/ and notes.json. */
@@ -18,6 +18,7 @@ const SHELL = [
   'reader/app.css',
   'reader/app.js',
   'reader/md.js',
+  'reader/i18n.js',
   'reader/icon.svg',
   'reader/manifest.webmanifest',
 ];
@@ -36,14 +37,20 @@ self.addEventListener('install', (event) => {
         }),
       );
 
-      // Pre-cache every note file listed in the manifest.
+      // Pre-cache every note file in every language, so switching language works
+      // offline too. Notes written before the handbook was bilingual have a flat
+      // `files` list; that shape is adopted here as English.
       try {
         const res = await fetch(new URL('notes.json', ROOT), { cache: 'reload' });
         if (res.ok) {
           await cache.put(new URL('notes.json', ROOT), res.clone());
           const manifest = await res.json();
+          const languages = manifest.languages || {
+            en: { files: manifest.files || [] },
+          };
+          const all = Object.values(languages).flatMap((entry) => entry.files || []);
           await Promise.all(
-            (manifest.files || []).map(async (entry) => {
+            all.map(async (entry) => {
               const name = typeof entry === 'string' ? entry : entry.file;
               try {
                 const fileRes = await fetch(new URL(name, ROOT), { cache: 'reload' });
