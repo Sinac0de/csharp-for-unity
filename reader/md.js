@@ -23,36 +23,33 @@
 /* ------------------------------------------------------------------ text utils */
 
 /**
- * Wraps a string in Unicode directional isolates (FSI/PDI) so that a chunk of
- * one script can sit inside a paragraph of the other without the surrounding
- * text reordering its edges. Inside a Persian paragraph, a Latin run like
- * `using System.Linq;` would otherwise drag its trailing `;` into RTL
- * reordering — the reader showed it on the wrong side. Code spans in headings,
- * captions and labels go through this, and the characters are zero-width, so
- * a plain-text copy of a section title stays byte-identical.
+ * Escapes HTML.
+ *
+ * Bidi isolation is done by markup, never by invisible characters. Every place
+ * that carries Latin inside a Persian sentence is an element with
+ * `dir="ltr"`/`dir="auto"`, which the HTML spec turns into `direction` +
+ * `unicode-bidi: isolate` on its own. Keeping the isolate markers out of the
+ * text matters: they used to leak into copied code, search hits and — worse —
+ * Chromium let a trailing `;` escape the nested FSI/PDI pair and jump to the
+ * far left of the code, and some fonts paint U+2067/U+2069 as visible boxes.
  */
-export function ltrIsolate(text) {
-  return `\u2067${text}\u2069`; // FSI … PDI
-}
-
-/**
- * Escapes HTML. With `{ bidi: true }` the result is wrapped in Unicode
- * directional isolates, so a Persian caption full of `using System.Linq;`
- * keeps its `;`, `,` and `()` attached to the Latin code instead of being
- * dragged to the wrong edge by RTL reordering.
- */
-export function escapeHtml(value, { bidi = false } = {}) {
-  const escaped = String(value)
+export function escapeHtml(value) {
+  return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-  return bidi ? ltrIsolate(escaped) : escaped;
 }
 
-/** Escape + LTR isolation: for inline code and code captions. */
-function codeSpanHtml(text) {
-  return `<code class="ic" dir="ltr">${ltrIsolate(escapeHtml(text))}</code>`;
+/**
+ * Wrap an already-escaped code span. `dir="ltr"` makes the element a bidi
+ * isolate in its own right, so a trailing `;`, `,` or `()` stays on the code's
+ * own side inside a Persian sentence. Do not add an FSI/PDI pair in here: it
+ * fights the element's own isolation (the `;` ends up at the left edge) and the
+ * characters show up in some fonts.
+ */
+function codeSpanHtml(escapedText) {
+  return `<code class="ic" dir="ltr">${escapedText}</code>`;
 }
 
 export function slugify(text) {
@@ -103,7 +100,8 @@ export function estimateWords(text) {
 export function inline(source) {
   let out = escapeHtml(source);
 
-  // Protect code spans so their contents are never styled as emphasis.
+  // Protect code spans so their contents are never styled as emphasis. They
+  // are captured post-escaping, so codeSpanHtml must not escape again.
   const spans = [];
   out = out.replace(/`([^`]+)`/g, (_, code) => `\u0001${spans.push(code) - 1}\u0001`);
 
@@ -366,7 +364,7 @@ function renderBlocks(lines, ctx) {
           '">' +
           '<figcaption class="code-bar">' +
           (label ? `<span class="code-lang">${escapeHtml(label)}</span>` : '') +
-          (caption ? `<span class="code-title">${escapeHtml(caption, { bidi: true })}</span>` : '') +
+          (caption ? `<span class="code-title" dir="auto">${escapeHtml(caption)}</span>` : '') +
           `<button class="code-copy" type="button" data-copy aria-label="${escapeHtml(
             ctx.labels.copyCode,
           )}">` +
@@ -456,8 +454,11 @@ function renderBlocks(lines, ctx) {
       const label = title
         ? `<p class="callout-title">${inline(title)}</p>`
         : '';
-      const badge = `<span class="callout-badge">${ltrIsolate(
-        escapeHtml(calloutLabel(tag)),
+      /* `dir="auto"` lets the badge speak either language: the Persian label
+         resolves RTL, the English one LTR, and the element isolates itself so
+         it can never drag punctuation out of the sentence beside it. */
+      const badge = `<span class="callout-badge" dir="auto">${escapeHtml(
+        calloutLabel(tag),
       )}</span>`;
       html.push(
         `<aside class="callout callout-${tag}" role="note" data-tag="${tag}">` +

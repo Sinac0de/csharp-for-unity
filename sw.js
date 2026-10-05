@@ -7,7 +7,11 @@
  * handbook keeps working on a plane, a train, or a flaky hotel Wi-Fi.
  */
 
-const VERSION = 'cu-reader-v4';
+/* Bump this whenever reader/*.js changes: the install step re-fetches the
+   shell with `cache: 'reload'`, which bypasses the HTTP cache, so a returning
+   reader gets the fixed renderer on their next visit instead of the copy their
+   browser cached ten minutes ago. */
+const VERSION = 'cu-reader-v5';
 
 /* This file must sit at the site root: a service worker can only cache requests
    inside its own scope, and the notes live in Assets/ and notes.json. */

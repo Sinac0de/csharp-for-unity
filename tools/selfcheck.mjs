@@ -42,10 +42,13 @@ check(
     const { html } = parseMarkdown(
       'Use **bold**, *italic*, `Code<T>` and a [link](https://example.com).',
     );
+    /* Inline code is a `dir="ltr"` element, which isolates it without any
+       invisible characters: a trailing `;` or `()` inside a Persian sentence
+       stays on the code's own side, and nothing leaks into a copy. */
     return (
       html.includes('<strong>bold</strong>') &&
       html.includes('<em>italic</em>') &&
-      html.includes('<code class="ic">Code&lt;T&gt;</code>') &&
+      html.includes('<code class="ic" dir="ltr">Code&lt;T&gt;</code>') &&
       html.includes('href="https://example.com"')
     );
   })(),
@@ -233,6 +236,35 @@ function checkLanguage(code, entry) {
     'code blocks are pinned left-to-right',
     !renderedBlocks || (allHtml.match(/class="code-block" dir="ltr"/g) || []).length === renderedBlocks,
     at('dir="ltr"'),
+  );
+  /* Inline code is escaped exactly once: a second pass would leave `&amp;lt;`
+     in the source, which the browser then paints as a literal `&lt;` instead
+     of a `<`. That is the bug where `List<Enemy>` showed as `&lt;Enemy&gt;` in
+     every paragraph, table, heading and callout that used a code span. */
+  const doubleEscaped = (allHtml.match(/&amp;(?:lt|gt|amp|quot|#\d+);/g) || []).length;
+  check(
+    'inline code is escaped exactly once',
+    doubleEscaped === 0,
+    at(`${doubleEscaped} double-escaped entities`),
+    'A `&amp;lt;` in the html turns into a visible `&lt;` on screen — escape code spans once, not twice.',
+  );
+  /* Inline code must be isolated by markup, and no Unicode bidi control
+     characters may appear in the text at all: an FSI/PDI pair inside the
+     element fights its own isolation (Chromium drops a trailing `;` to the far
+     left of the code) and renders as a visible box in some fonts. */
+  const inlineSpans = (allHtml.match(/<code class="ic"/g) || []).length;
+  const ltrSpans = (allHtml.match(/<code class="ic" dir="ltr">/g) || []).length;
+  check(
+    'every inline code span is pinned left-to-right',
+    inlineSpans === ltrSpans,
+    at(`${ltrSpans}/${inlineSpans} dir="ltr"`),
+  );
+  const bidiControls = (raw + allHtml).match(/[\u2066-\u2069\u200e\u200f\u202a-\u202e]/g);
+  check(
+    'no invisible bidi characters leak into the text',
+    !bidiControls,
+    at(bidiControls ? `${bidiControls.length} found` : 'clean'),
+    'Isolate Latin runs with dir="ltr"/dir="auto" elements instead of FSI/PDI characters.',
   );
 
   return { chapters: book.chapters.length, minutes, blocks: renderedBlocks, callouts: renderedCallouts };

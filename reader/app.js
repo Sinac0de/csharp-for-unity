@@ -12,7 +12,7 @@
  * No dependencies and no build step is needed to edit the notes.
  */
 
-import { buildBook, escapeHtml } from './md.js';
+import { buildBook, escapeHtml, setCalloutLabels } from './md.js';
 import { translate, fold, directionOf } from './i18n.js';
 
 /* ------------------------------------------------------------------ elements */
@@ -1326,6 +1326,17 @@ async function loadBook(code) {
   const languages = languagesOf(manifest);
   const entry = languages[code] || languages.en || Object.values(languages)[0];
   const files = await materialiseFiles(entry.files);
+  /* The callout tag is markdown syntax and stays English (`> [tip]`), but the
+     badge it paints speaks the reader's language: [tip] → نکته, [interview] →
+     مصاحبه. The renderer keeps that map, so hand it over before parsing. */
+  setCalloutLabels({
+    tip: t('callout.tip'),
+    warn: t('callout.warn'),
+    note: t('callout.note'),
+    perf: t('callout.perf'),
+    interview: t('callout.interview'),
+    recap: t('callout.recap'),
+  });
   return buildBook({
     title: manifest.title,
     subtitle: manifest.subtitle,
